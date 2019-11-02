@@ -7,6 +7,8 @@ class Query:
     def __init__(self, queue):
         self.response = None
         self.callback = None
+        self.fileName = None
+        self.method = ""
         self.queue = queue
 
     def clearArgs(self):
@@ -24,24 +26,34 @@ class Query:
         return self
 
     def executeQuery(self, timeout=3):
-        self.response = requests.get(url=self.link, timeout=timeout)
+        try:
+            self.response = requests.get(url=self.link, timeout=timeout)
+        except requests.exceptions.RequestException as e:
+            print(e)
+            return 408
 
-        if self.callback != None:
-            self.callback(self, **self.callback_kwargs)
+        if self.response.status_code == 200:
+            if self.callback != None:
+                self.callback(self, **self.callback_kwargs)
+        else:
+            print("Query Unsuccessful: " + self.response.status_code.__str__() + "\n\t" +  self.link)
+
+        return self.response.status_code
 
     def isComplete(self):
         return self.response != None
-
-    
 
     def __repr__(self):
         if self.response != None:
             return self.response.__repr__()
         else:
-            return self.__class__.__name__ + " " + self.args.__repr__()
+            return self.__class__.__name__ + "." + self.method + " " + self.args.__repr__() + " " + "Callback: " + self.callback.__name__
 
     def name(self):
-        return self.__class__.__name__ +  "_".join([''] + [x[0].__str__()+"_"+x[1].__str__() for x in list(self.args.items())])
+        if self.name == None:
+            return self.__class__.__name__ +  "_".join([''] + [x[0].__str__()+"_"+x[1].__str__() for x in list(self.args.items())]) 
+        else:
+            return self.fileName
 
 
 class SummonerQuery(Query):
@@ -53,7 +65,8 @@ class SummonerQuery(Query):
         self.args = kwargs
         args_text = utils.url_args(kwargs)
         self.args['summonerName'] = summonerName
-        self.link = f"{self.base_link}/by-name/{summonerName}{args_text}?api_key={API_KEY}"
+        self.link = f"{self.base_link}/by-name/{summonerName}?{args_text}api_key={API_KEY}"
+        self.method = "byName"
 
         return self.sendToQueue()
 
@@ -61,7 +74,8 @@ class SummonerQuery(Query):
         self.args = kwargs
         args_text = utils.url_args(kwargs)
         self.args['encryptedAccountId'] = encryptedAccountId
-        self.link = f"{self.base_link}/by-account/{encryptedAccountId}{args_text}?api_key={API_KEY}"
+        self.link = f"{self.base_link}/by-account/{encryptedAccountId}?{args_text}api_key={API_KEY}"
+        self.method = "byAccountId"
 
         return self.sendToQueue()
 
@@ -69,7 +83,8 @@ class SummonerQuery(Query):
         self.args = kwargs
         args_text = utils.url_args(kwargs)
         self.args['encryptedPUUID'] = encryptedPUUID
-        self.link = f"{self.base_link}/by-puuid/{encryptedPUUID}{args_text}?api_key={API_KEY}"
+        self.link = f"{self.base_link}/by-puuid/{encryptedPUUID}?{args_text}api_key={API_KEY}"
+        self.method = "byPUUID"
 
         return self.sendToQueue()
     
@@ -83,7 +98,9 @@ class MatchQuery(Query):
         self.args = kwargs
         args_text = utils.url_args(kwargs)
         self.args['matchId'] = matchId
-        self.link = f"{self.base_link}/matches/{matchId}{args_text}?api_key={API_KEY}"
+        self.link = f"{self.base_link}/matches/{matchId}?{args_text}api_key={API_KEY}"
+        self.fileName = str(matchId)
+        self.method = "byMatchId"
 
         return self.sendToQueue()
 
@@ -91,7 +108,9 @@ class MatchQuery(Query):
         self.args = kwargs
         args_text = utils.url_args(kwargs)
         self.args['encryptedAccountId'] = encryptedAccountId
-        self.link = f"{self.base_link}/matchlists/by-account/{encryptedAccountId}{args_text}?api_key={API_KEY}"
+        self.link = f"{self.base_link}/matchlists/by-account/{encryptedAccountId}?{args_text}api_key={API_KEY}"
+        self.fileName = str(encryptedAccountId)
+        self.method = "byAccountId"
 
         return self.sendToQueue()
 
@@ -99,7 +118,9 @@ class MatchQuery(Query):
         self.args = kwargs
         args_text = utils.url_args(kwargs)
         self.args['matchId'] = matchId
-        self.link = f"{self.base_link}/timelines/by-match/{matchId}{args_text}?api_key={API_KEY}"
+        self.link = f"{self.base_link}/timelines/by-match/{matchId}{args_text}?{args_text}api_key={API_KEY}"
+        self.fileName = str(matchId)
+        self.method = "timelineByMatchId"
 
         return self.sendToQueue()
 
