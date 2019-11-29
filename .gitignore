@@ -4,5 +4,6 @@ path.py
 matches/*
 timelines/*
 matchlists/*
+supplement/*
 *.pyc
 *.txt

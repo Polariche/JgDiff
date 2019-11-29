@@ -19,7 +19,7 @@ class QueryQueue:
         return len(self.queue)
 
 
-    def append(self, x):
+    def append(self, x, retry=False):
         self.queue.append(x)
 
     def pop(self):
@@ -59,8 +59,9 @@ class QueryQueue:
                 print(query)
                 code = query.executeQuery()
 
-                if code == 429:
+                if code == 429 or code == 408:
                     self.minuteCalls = minuteLimit
+                    self.append(query, retry=True)
 
 
     async def resetMinute(self):
@@ -85,18 +86,18 @@ class MatchFirstQueue(QueryQueue):
         self.searchedMatchLists = [filename[:-5] for filename in os.listdir(path.matchlists)]
         self.searchedMatches = [filename[:-5] for filename in os.listdir(path.matches)]
 
-    def append(self, x):
+    def append(self, x, retry=False):
         matchId = utils.get(x.args, "matchId")
 
         if matchId == None:
             if x.__class__.__name__ == "MatchQuery":
-                if x.fileName not in self.searchedMatchLists:
+                if x.fileName not in self.searchedMatchLists or retry:
                     self.matchListQueue.append(x)
                     self.searchedMatchLists.append(x.fileName)
             else:
                 self.queue.append(x)
         else:
-            if not matchId in self.searchedMatches:
+            if not matchId in self.searchedMatches or retry:
                 self.matchQueue.append(x)
 
                 if x.method == "byMatchId":

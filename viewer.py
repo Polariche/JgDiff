@@ -3,13 +3,14 @@ import path
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import pandas
+import pandas as pd
+import bigdata
 
 
-def matchRoles(matchId):
-    #This needs some multiclass SVM for proper role identification
+def matchRoles_v1(matchId):
+    #useless lololol
 
-    with open(path.matches+str(matchId)+".json") as file:
+    with open(path.matches+str(matchId)+".json", encoding='UTF8') as file:
         
         j = json.load(file)
         players = j["participants"]
@@ -18,7 +19,7 @@ def matchRoles(matchId):
         minute = int(duration/60)
 
         #pid, champ
-        a = np.empty((2,5,2), dtype=int)
+        a = np.zeros((2,5,2), dtype=int)
 
         for player in players:
             pid = player["participantId"]
@@ -49,13 +50,38 @@ def matchRoles(matchId):
             elif (role == "DUO_SUPPORT" or csPerMin < 3) and (lane == "BOTTOM" or lane == "JUNGLE"):
                 a[team][4] = row
 
+        for i in range(2):
+            check = sum(a[i][:,0]) - 20*i
+            if check >= 10 and check < 15:
+                for j in range(5):
+                    if a[i][j, 0] == 0:
+                        pid = 15 - check + 5*i
+                        a[i][j] = [pid, players[pid-1]["championId"]]
+                        
+
         return a
+
+
+def matchRoles_v2(matchId):
+    a = np.zeros((2,10), dtype=int)
+
+    with open(path.timelines+str(matchId)+".json", encoding='UTF8') as file:
+        frame = json.load(file)["frames"][0]
+        ids = [x["participantId"] for x in frame["participantFrames"].values()]
+        a[0] = ids
+
+    with open(path.matches+str(matchId)+".json", encoding='UTF8') as file:
+        p = json.load(file)["participants"]
+        a[1] = [p[x-1]["championId"] for x in a[0]]
+
+    return a
+
 
 
 def timeline(matchId, p):
     f = [[] for i in range(len(p))]
 
-    with open(path.timelines+str(matchId)+".json") as file:
+    with open(path.timelines+str(matchId)+".json", encoding='UTF8') as file:
         frames = json.load(file)["frames"]
 
         for frame in frames[:-1]:
@@ -76,12 +102,20 @@ def timeline(matchId, p):
 
 
 def kills(matchId):
-    with open(path.timelines+str(matchId)+".json") as file:
+    with open(path.timelines+str(matchId)+".json", encoding='UTF8') as file:
         frames = json.load(file)["frames"]
         f = [[] for i in range(len(frames))]
 
         for i in range(len(frames)):
             events = frames[i]["events"]
+
+            picks = ["level", "totalGold"]
+            growthDiff = []
+            if i<1:
+                growthDiff = [1,500]*10
+            else:
+                # information BEFORE the kill happened
+                growthDiff = [x[picks[t]] for x in frames[i-1]["participantFrames"].values() for t in range(2) ]
 
             for event in events:
                 if event["type"] == "CHAMPION_KILL":
@@ -90,42 +124,48 @@ def kills(matchId):
                     x,y = event["position"].values()
                     k = event["killerId"]
                     d = event["victimId"]
-                    #a = ''
-                    #if len(event["assistingParticipantIds"]) > 0:
-                    #    a = ','.join(map(str, event["assistingParticipantIds"]))
+                    a = np.nan
+                    if len(event["assistingParticipantIds"]) > 0:
+                        a = int(''.join(map(lambda x: str(x%10), sorted(event["assistingParticipantIds"], reverse=True))))
 
-                    f[i].append([timestamp, x, y, k, d,]) #a])
-            f[i] = np.array(f[i]).reshape(-1,5)
+                    f[i].append([timestamp, x, y, k, d, a]+growthDiff)
+            f[i] = np.array(f[i]).reshape(-1,26)
 
         return f
 
 
 page = 0
 def matchViewer(matchId):
-    roles = matchRoles(matchId)
-
-    roleText = ["Top", "Jungle", "Mid", "Bot", "Support"]
+    #roles = matchRoles(matchId)
+    #print(roles)
+    roleText = ["Top", "Jgl", "Mid", "Bot", "Sup"]
 
     vs = []
     vs = np.array(timeline(matchId, list(range(1,11))))
     kill = kills(matchId)
 
-    def plotPage(page, gca):
-        gca.set_xlim([0,14800])
-        gca.set_ylim([0,14800])
-        img = plt.imread("assets/minimap.png")
-        gca.imshow(img,extent=[-200, 14800, -200, 14800])
+    print(vs)
 
-        gca.scatter(vs[:5,page,1], vs[:5,page,2], color='b')
-        gca.scatter(vs[5:,page,1], vs[5:,page,2], color='r')
+    def setMap(gca):
+        gca.set_xlim([0,15000])
+        gca.set_ylim([0,15000])
+        img = plt.imread("statics/minimap.png")
+        gca.imshow(img,extent=[-200, 15000, -200, 15000])
+
+    def plotPage(page, gca):
+        print("page: ", page)
+        setMap(gca)
+
+        gca.scatter(vs[:5,page,1], vs[:5,page,2], color='b', picker=True)
+        gca.scatter(vs[5:,page,1], vs[5:,page,2], color='r', picker=True)
+        for i in range(10):
+            plt.text(vs[i,page,1]+10, vs[i,page,2], roleText[i%5], color='#DDDDDD')
 
         for i in range(len(kill[page])):
             col = 'b' if kill[page][i, 4] <= 5 else 'r'
 
-            gca.scatter(kill[page][i, 1], kill[page][i, 2], color=col, marker='X', s=200)
-        for i in range(10):
-            plt.text(vs[i,page,1]+10, vs[i,page,2], roleText[i%5], color='#DDDDDD')
-
+            gca.scatter(kill[page][i, 1], kill[page][i, 2], color=col, marker='x', s=200)
+        
     def onscroll(event):
         global page
 
@@ -139,13 +179,22 @@ def matchViewer(matchId):
         plotPage(page, gca)
         event.canvas.draw()
 
+    def onpick3(event):
+        ind = event.ind
+        team = int(event.artist.get_facecolors()[0,0])
+
+        for i in range(len(ind)):
+            pid = ind[i]+team*5
+            print(team, roleText[ind[i]], vs[pid, page][3:])
+
     fig = plt.figure()
     fig.canvas.mpl_connect('scroll_event', onscroll)
+    fig.canvas.mpl_connect('pick_event', onpick3)
 
     plotPage(0, plt.gca())
 
 
     plt.show()
 
-
-print(matchViewer(3664646598))
+if __name__ == "__main__":
+    matchRoles(3273221800)

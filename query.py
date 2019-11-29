@@ -37,6 +37,7 @@ class Query:
                 self.callback(self, **self.callback_kwargs)
         else:
             print("Query Unsuccessful: " + self.response.status_code.__str__() + "\n\t" +  self.link)
+            
 
         return self.response.status_code
 
