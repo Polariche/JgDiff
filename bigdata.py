@@ -35,17 +35,31 @@ def objects(json, match):
         events = frames[i]["events"]
 
         for event in events:
-            if event["type"] == "CHAMPION_KILL":
+            if event["type"] == "BUILDING_KILL":
                 timestamp = event["timestamp"]
                 x,y = event["position"].values()
                 k = event["killerId"]
-                d = event["victimId"]
+                d = event["type"]
                 a = np.nan
+                s1 = event["laneType"]
+                s2 = event["towerType"]
+
                 if len(event["assistingParticipantIds"]) > 0:
                     a = int(''.join(map(lambda x: str(x%10), sorted(event["assistingParticipantIds"], reverse=True))))
 
-                f.append([match, timestamp, x, y, k, d, a])
-    return np.array(f).reshape(-1,7)
+                f.append([match, timestamp, x, y, k, d, a, s1, s2])
+
+            if event["type"] == "ELITE_MONSTER_KILL":
+                timestamp = event["timestamp"]
+                x,y = event["position"].values()
+                k = event["killerId"]
+                d = event["type"]
+                a = np.nan
+                s1 = event["monsterType"]
+                s2 = np.nan if "monsterSubType" not in event.keys() else event["monsterSubType"]
+
+                f.append([match, timestamp, x, y, k, d, a, s1, s2])
+    return np.array(f).reshape(-1,9)
 
 
 def kills(json, match):
@@ -114,23 +128,23 @@ def matchRoles(match):
     return a
 
 def createTables(matchlist):
-	playerFrameTable = np.empty([0, 7])
+	playerFrameTable = np.empty([0, 9])
 	for match in matchlist:
 		
 		with open(path.timelines+str(match)+".json", encoding='UTF8') as file:
 			j= json.load(file)
 
-			playerFrameTable = np.concatenate([playerFrameTable, kills(j, match)], axis=0)
+			playerFrameTable = np.concatenate([playerFrameTable, objects(j, match)], axis=0)
 
 	return playerFrameTable
 
 if __name__ == "__main__":
 
 	t = os.listdir(path.matches)
-	a = 19
-	matches = [int(x[:-5]) for x in t][(a-1)*1000:a*1000]
-
-	pd.DataFrame(createTables(matches), columns=['matchId', 'timestamp', 'x', 'y', 'killer', 'victim', 'assist']).to_csv(f"supplement/kills{a}.csv")
+	for a in range(1,20):
+		matches = [int(x[:-5]) for x in t][(a-1)*1000:a*1000]
+		print(a)
+		pd.DataFrame(createTables(matches), columns=['matchId', 'timestamp', 'x', 'y', 'killer', 'event', 'assist', 'type', 'subtype']).to_csv(f"supplement/objects{a}.csv")
 	#pd.DataFrame(createTables(matches), columns=['matchId', 'frame', 'participantKey'] + ['participantId', 'position_x', 'position_y', 'currentGold', 'totalGold', 'level', 'xp']).to_csv(f"supplement/playerFrameTable{a}.csv")
 #print(createTables([3278904898, 3956480499]).astype(np.int64))
 

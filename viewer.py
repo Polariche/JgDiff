@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import bigdata
+import torch
 
 
 def matchRoles_v1(matchId):
@@ -197,4 +198,4 @@ def matchViewer(matchId):
     plt.show()
 
 if __name__ == "__main__":
-    matchRoles(3273221800)
+    matchViewer(3273221800)
